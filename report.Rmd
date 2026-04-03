@@ -1,0 +1,1093 @@
+---
+title: "project_ck"
+output: html_document
+date: "2025-12-28"
+---
+PHẦN CỦA THUÝ QUỲNH
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(DataExplorer)
+library(coin)
+library(rstatix)
+df <- read_csv(file="/Users/mum/Documents/diabetes_012_health_indicators_BRFSS2015.csv")
+df
+introduce(df)
+summary(df)
+```
+
+```{r}
+df %>%
+  count(Diabetes_012) %>%
+  mutate(prop = n / sum(n))
+
+df %>%
+  mutate(Diabetes_012 = factor(Diabetes_012,
+    levels = c(0,1,2),
+    labels = c("No diabetes", "Prediabetes", "Diabetes"))) %>%
+  ggplot(aes(Diabetes_012)) +
+  geom_bar(fill = "steelblue") +
+  labs(
+    x = "Diabetes status",
+    y = "Count",
+    title = "Distribution of diabetes status (count)"
+  )
+
+```
+```{r}
+df$AgeGroup <- factor(
+  df$Age,
+  levels = 1:13,
+  labels = c(
+    "18–24","25–29","30–34","35–39","40–44","45–49",
+    "50–54","55–59","60–64","65–69","70–74","75–79","80+"
+  ),
+  ordered = TRUE
+)
+
+table(df$AgeGroup)
+
+ggplot(df, aes(AgeGroup)) +
+  geom_bar(fill = "steelblue") +
+  labs(
+    x = "Age group",
+    y = "Count",
+    title = "Distribution of age groups"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(df, aes(AgeGroup, fill = factor(Diabetes_012))) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    x = "Age group",
+    y = "Proportion",
+    fill = "Diabetes status",
+    title = "Diabetes status by age group"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+```{r}
+plot_density(df %>% select(BMI))
+
+df %>%
+  mutate(Diabetes_012 = factor(Diabetes_012,
+    levels = c(0,1,2),
+    labels = c("No diabetes", "Prediabetes", "Diabetes"))) %>%
+  ggplot(aes(x = BMI, fill = Diabetes_012)) +
+  geom_density(alpha = 0.4) +
+  labs(
+    title = "BMI distribution by diabetes status",
+    x = "BMI",
+    y = "Density",
+    fill = "Diabetes status"
+  )
+
+df %>%
+  mutate(Diabetes_012 = factor(Diabetes_012,
+    levels = c(0,1,2),
+    labels = c("No diabetes", "Prediabetes", "Diabetes"))) %>%
+  ggplot(aes(x = Diabetes_012, y = BMI)) +
+  geom_boxplot() +
+  labs(
+    title = "BMI by diabetes status",
+    x = "Diabetes status",
+    y = "BMI"
+  )
+
+```
+```{r}
+df <- df %>%
+  mutate(
+    Diabetes_012 = factor(Diabetes_012,
+      levels = c(0,1,2),
+      labels = c("No diabetes", "Prediabetes", "Diabetes")),
+    HighBP   = factor(HighBP,   levels = c(0,1), labels = c("No","Yes")),
+    HighChol = factor(HighChol, levels = c(0,1), labels = c("No","Yes")),
+    Smoker = factor(Smoker, levels = c(0,1), labels = c("No","Yes"))
+  )
+
+ggplot(df, aes(x = Diabetes_012, fill = HighBP)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "High blood pressure by diabetes status",
+    x = "Diabetes status",
+    y = "Proportion",
+    fill = "High BP"
+  )
+
+ggplot(df, aes(x = Diabetes_012, fill = HighChol)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "High cholesterol by diabetes status",
+    x = "Diabetes status",
+    y = "Proportion",
+    fill = "High Chol"
+  )
+ggplot(df, aes(x = Diabetes_012, fill = Smoker)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Smoking status by diabetes status",
+    x = "Diabetes status",
+    y = "Proportion",
+    fill = "Smoker"
+  )
+
+
+```
+```{r}
+library(boot)
+
+boot_mean <- function(data, indices) {
+  mean(data[indices])
+}
+
+set.seed(123)
+
+# lọc sạch BMI theo nhóm
+bmi_no   <- df$BMI[df$Diabetes_012 == "No diabetes"]
+bmi_pre   <- df$BMI[df$Diabetes_012 == "Prediabetes"]
+bmi_diab <- df$BMI[df$Diabetes_012 == "Diabetes"]
+
+bmi_no   <- bmi_no[is.finite(bmi_no)]
+bmi_pre   <- bmi_pre[is.finite(bmi_pre)]
+bmi_diab <- bmi_diab[is.finite(bmi_diab)]
+
+# bootstrap
+boot_no   <- boot(bmi_no,   statistic = boot_mean, R = 1000)
+boot_pre   <- boot(bmi_pre,   statistic = boot_mean, R = 1000)
+boot_diab <- boot(bmi_diab, statistic = boot_mean, R = 1000)
+
+# CI kiểu percentile
+boot.ci(boot_no,   type = "perc")
+boot.ci(boot_pre,   type = "perc")
+boot.ci(boot_diab, type = "perc")
+
+```
+PHẦN CỦA THU HỒNG
+Thống kê mô tả theo nhóm
+```{r}
+df %>%
+  group_by(Diabetes_012) %>%
+  summarise(
+    n = n(),
+    mean_BMI = mean(BMI, na.rm = TRUE),
+    sd_BMI = sd(BMI, na.rm = TRUE)
+    )
+```
+One-way ANOVA cổ điển
+```{r}
+anova_classic <- aov(BMI ~ Diabetes_012, data = df)
+summary(anova_classic)
+```
+# Permutation ANOVA
+```{r}
+set.seed(123)
+anova_perm <- oneway_test(
+BMI ~ Diabetes_012,
+data = df,
+distribution = approximate(nresample = 5000)
+)
+anova_perm
+```
+ost-hoc pairwise comparison (Permutation t-test + hiệu chỉnh Holm)
+```{r}
+pairwise_results <- df %>%
+pairwise_t_test(
+BMI ~ Diabetes_012,
+p.adjust.method = "holm"
+)
+pairwise_results
+```
+```{r}
+# Biểu đồ Violin + Boxplot + Mean
+ggplot(df, aes(x = Diabetes_012, y = BMI, fill = Diabetes_012)) +
+  geom_violin(trim = FALSE, alpha = 0.6) +            # Biểu đồ violin
+  geom_boxplot(width = 0.15, alpha = 0.7, outlier.alpha = 0.2) +  # Boxplot bên trong
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "white") +  # Mean
+  labs(
+    title = "BMI Distribution Across Diabetes Status Groups",
+    x = "Diabetes Status",
+    y = "BMI"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+```{r}
+set.seed(123)
+n_perm <- 10000
+
+perm_results <- replicate(n_perm, {
+  perm_group <- sample(df$Diabetes_012)  
+  mean(df$BMI[perm_group == "Diabetes"], na.rm = TRUE)
+})
+
+mean_obs <- mean(df$BMI[df$Diabetes_012 == "Diabetes"], na.rm = TRUE)
+
+
+```
+```{r}
+ggplot(data = data.frame(value = perm_results), aes(x = value)) +
+  geom_histogram(bins = 15, fill = "gray80", color = "black") +
+  geom_vline(xintercept = mean_obs, color = "blue", linetype = "dashed") +
+  labs(
+    x = "Mean BMI nhóm Diabetes",
+    y = "Tần số",
+    title = "Phân phối trung bình BMI theo permutation"
+  ) +
+  theme_bw()
+```
+
+PHẦN CỦA HOÀNG BẢO
+```{r}
+# ===================================================================
+#  PHÂN TÍCH MỐI LIÊN HỆ & KIỂM ĐỊNH
+# ===================================================================
+
+library(boot)
+
+# Permutation Test cho BMI giữa các nhóm Diabetes
+# -------------------------------------------------------------------
+# Viết hàm permutation test 
+
+perm_test_two_groups <- function(.data, var, group, group1, group2, R = 10000) {
+  # Lọc dữ liệu cho 2 nhóm
+  data_filtered <- .data %>%
+    filter({{group}} %in% c(group1, group2)) %>%
+    select({{var}}, {{group}}) %>%
+    filter(is.finite({{var}}))
+  
+  # Tính thống kê từ dữ liệu gốc
+  group_means <- data_filtered %>%
+    group_by({{group}}) %>%
+    summarise(mean_val = mean({{var}}), n = n(), .groups = "drop")
+  
+  mean_1 <- group_means$mean_val[group_means[[1]] == group1]
+  mean_2 <- group_means$mean_val[group_means[[1]] == group2]
+  obs_diff <- mean_1 - mean_2
+  
+  # Chuẩn bị dữ liệu cho permutation
+  values <- pull(data_filtered, {{var}})
+  groups <- pull(data_filtered, {{group}})
+  n <- length(values)
+  n_group1 <- sum(groups == group1)
+  
+  # Permutation
+  set.seed(21)
+  perm_diffs <- sapply(1:R, function(i) {
+    idx_1 <- sample(1:n, size = n_group1, replace = FALSE)
+    idx_2 <- setdiff(1:n, idx_1)
+    mean_perm_1 <- mean(values[idx_1])
+    mean_perm_2 <- mean(values[idx_2])
+    return(mean_perm_1 - mean_perm_2)
+  })
+  
+  # Tính p-value (hai phía)
+  p_val <- mean(abs(perm_diffs) >= abs(obs_diff))
+  
+  return(list(
+    obs_diff = obs_diff,
+    perm_diffs = perm_diffs,
+    p_value = p_val,
+    group1 = group1,
+    group2 = group2
+  ))
+}
+
+# Áp dụng permutation test cho BMI
+cat("\n=== PERMUTATION TEST: BMI ===\n")
+
+# So sánh Diabetes vs No diabetes
+cat("\n--- Diabetes vs No diabetes ---\n")
+perm_bmi_1 <- perm_test_two_groups(df, BMI, Diabetes_012, 
+                                    "Diabetes", "No diabetes", R = 10000)
+cat("Chênh lệch trung bình quan sát:", round(perm_bmi_1$obs_diff, 2), "\n")
+cat("P-value:", perm_bmi_1$p_value, "\n")
+
+# So sánh Prediabetes vs No diabetes
+cat("\n--- Prediabetes vs No diabetes ---\n")
+perm_bmi_2 <- perm_test_two_groups(df, BMI, Diabetes_012, 
+                                    "Prediabetes", "No diabetes", R = 10000)
+cat("Chênh lệch trung bình quan sát:", round(perm_bmi_2$obs_diff, 2), "\n")
+cat("P-value:", perm_bmi_2$p_value, "\n")
+
+# So sánh Diabetes vs Prediabetes
+cat("\n--- Diabetes vs Prediabetes ---\n")
+perm_bmi_3 <- perm_test_two_groups(df, BMI, Diabetes_012, 
+                                    "Diabetes", "Prediabetes", R = 10000)
+cat("Chênh lệch trung bình quan sát:", round(perm_bmi_3$obs_diff, 2), "\n")
+cat("P-value:", perm_bmi_3$p_value, "\n")
+
+# Vẽ histogram phân phối permutation
+ggplot(data = data.frame(diff = perm_bmi_1$perm_diffs), aes(x = diff)) +
+  geom_histogram(bins = 30, fill = "gray80", color = "black") +
+  geom_vline(xintercept = perm_bmi_1$obs_diff, color = "blue", 
+             linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Phân phối permutation: BMI (Diabetes - No diabetes)",
+    x = "Chênh lệch trung bình",
+    y = "Tần số"
+  ) +
+  theme_bw()
+
+ggplot(data = data.frame(diff = perm_bmi_2$perm_diffs), aes(x = diff)) +
+  geom_histogram(bins = 30, fill = "gray80", color = "black") +
+  geom_vline(xintercept = perm_bmi_2$obs_diff, color = "blue", 
+             linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Phân phối permutation: BMI (Prediabetes - No diabetes)",
+    x = "Chênh lệch trung bình",
+    y = "Tần số"
+  ) +
+  theme_bw()
+```
+```{r}
+#  Bootstrap Test cho sự khác biệt BMI
+# -------------------------------------------------------------------
+# Viết hàm bootstrap test 
+
+bootstrap_test_two_groups <- function(.data, var, group, group1, group2, R = 5000) {
+  # Lọc dữ liệu cho 2 nhóm
+  data_group1 <- .data %>%
+    filter({{group}} == group1) %>%
+    pull({{var}}) %>%
+    .[is.finite(.)]
+  
+  data_group2 <- .data %>%
+    filter({{group}} == group2) %>%
+    pull({{var}}) %>%
+    .[is.finite(.)]
+  
+  # Bước 1: Tính ước lượng từ dữ liệu gốc
+  mean_1 <- mean(data_group1)
+  mean_2 <- mean(data_group2)
+  sd_1 <- sd(data_group1)
+  sd_2 <- sd(data_group2)
+  n_1 <- length(data_group1)
+  n_2 <- length(data_group2)
+  
+  # Thống kê quan sát
+  t_obs <- (mean_1 - mean_2) / sqrt(sd_1^2/n_1 + sd_2^2/n_2)
+  
+  # Bước 2: Tạo dữ liệu centered (trừ đi trung bình)
+  data_1_centered <- data_group1 - mean_1
+  data_2_centered <- data_group2 - mean_2
+  
+  # Bước 3-6: Bootstrap
+  set.seed(123)
+  t_boot <- sapply(1:R, function(i) {
+    # Lấy mẫu bootstrap (with replacement)
+    boot_1 <- sample(data_1_centered, n_1, replace = TRUE)
+    boot_2 <- sample(data_2_centered, n_2, replace = TRUE)
+    
+    # Tính thống kê
+    mean_boot_1 <- mean(boot_1)
+    mean_boot_2 <- mean(boot_2)
+    sd_boot_1 <- sd(boot_1)
+    sd_boot_2 <- sd(boot_2)
+    
+    t_star <- (mean_boot_1 - mean_boot_2) / 
+      sqrt(sd_boot_1^2/n_1 + sd_boot_2^2/n_2)
+    
+    return(t_star)
+  })
+  
+  # Bước 7: Tính p-value (hai phía)
+  p_val <- mean(abs(t_boot) >= abs(t_obs))
+  
+  return(list(
+    t_obs = t_obs,
+    t_boot = t_boot,
+    p_value = p_val,
+    mean_diff = mean_1 - mean_2,
+    group1 = group1,
+    group2 = group2
+  ))
+}
+
+# Áp dụng bootstrap test
+cat("\n=== BOOTSTRAP TEST: BMI ===\n")
+
+cat("\n--- Diabetes vs No diabetes ---\n")
+boot_bmi_1 <- bootstrap_test_two_groups(df, BMI, Diabetes_012, 
+                                        "Diabetes", "No diabetes", R = 5000)
+cat("Thống kê t quan sát:", round(boot_bmi_1$t_obs, 2), "\n")
+cat("Chênh lệch trung bình:", round(boot_bmi_1$mean_diff, 2), "\n")
+cat("P-value:", boot_bmi_1$p_value, "\n")
+
+cat("\n--- Prediabetes vs No diabetes ---\n")
+boot_bmi_2 <- bootstrap_test_two_groups(df, BMI, Diabetes_012, 
+                                        "Prediabetes", "No diabetes", R = 5000)
+cat("Thống kê t quan sát:", round(boot_bmi_2$t_obs, 2), "\n")
+cat("Chênh lệch trung bình:", round(boot_bmi_2$mean_diff, 2), "\n")
+cat("P-value:", boot_bmi_2$p_value, "\n")
+
+# Vẽ histogram phân phối bootstrap
+ggplot(data = data.frame(t = boot_bmi_1$t_boot), aes(x = t)) +
+  geom_histogram(bins = 30, fill = "gray80", color = "black") +
+  geom_vline(xintercept = boot_bmi_1$t_obs, color = "red", 
+             linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Phân phối bootstrap: thống kê t cho BMI (Diabetes vs No diabetes)",
+    x = "Thống kê t",
+    y = "Tần số"
+  ) +
+  theme_bw()
+```
+
+```{r}
+#  Bootstrap CI cho BMI theo nhóm
+# -------------------------------------------------------------------
+cat("\n=== BOOTSTRAP CONFIDENCE INTERVALS CHO BMI ===\n")
+
+# Hàm statistic cho boot()
+boot_mean <- function(data, indices) {
+  mean(data[indices])
+}
+
+# Lọc dữ liệu theo nhóm
+bmi_no   <- df$BMI[df$Diabetes_012 == "No diabetes"]
+bmi_pre  <- df$BMI[df$Diabetes_012 == "Prediabetes"]
+bmi_diab <- df$BMI[df$Diabetes_012 == "Diabetes"]
+
+# Loại bỏ giá trị không hợp lệ
+bmi_no   <- bmi_no[is.finite(bmi_no)]
+bmi_pre  <- bmi_pre[is.finite(bmi_pre)]
+bmi_diab <- bmi_diab[is.finite(bmi_diab)]
+
+# Bootstrap
+set.seed(123)
+boot_no   <- boot(bmi_no,   statistic = boot_mean, R = 5000)
+boot_pre  <- boot(bmi_pre,  statistic = boot_mean, R = 5000)
+boot_diab <- boot(bmi_diab, statistic = boot_mean, R = 5000)
+
+# CI kiểu percentile
+cat("\n--- No diabetes ---\n")
+cat("Mean BMI:", round(mean(bmi_no), 2), "\n")
+ci_no <- boot.ci(boot_no, type = "perc")
+print(ci_no)
+
+cat("\n--- Prediabetes ---\n")
+cat("Mean BMI:", round(mean(bmi_pre), 2), "\n")
+ci_pre <- boot.ci(boot_pre, type = "perc")
+print(ci_pre)
+
+cat("\n--- Diabetes ---\n")
+cat("Mean BMI:", round(mean(bmi_diab), 2), "\n")
+ci_diab <- boot.ci(boot_diab, type = "perc")
+print(ci_diab)
+
+# Vẽ phân phối bootstrap cho từng nhóm
+df_boot_all <- data.frame(
+  BMI = c(boot_no$t, boot_pre$t, boot_diab$t),
+  Group = rep(c("No diabetes", "Prediabetes", "Diabetes"), 
+              each = length(boot_no$t))
+)
+
+ggplot(df_boot_all, aes(x = BMI, fill = Group)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = mean(bmi_no), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = mean(bmi_pre), color = "green", linetype = "dashed") +
+  geom_vline(xintercept = mean(bmi_diab), color = "blue", linetype = "dashed") +
+  labs(
+    title = "Phân phối Bootstrap của trung bình BMI theo nhóm",
+    x = "BMI trung bình",
+    y = "Mật độ"
+  ) +
+  theme_bw()
+```
+```{r}
+# Phân tích tỷ lệ HighBP theo nhóm Diabetes
+# -------------------------------------------------------------------
+cat("\n=== PHÂN TÍCH TỶ LỆ HIGH BLOOD PRESSURE ===\n")
+
+# Tính tỷ lệ HighBP theo nhóm
+prop_highbp <- df %>%
+  group_by(Diabetes_012) %>%
+  summarise(
+    n = n(),
+    n_highbp = sum(HighBP == "Yes"),
+    prop_highbp = mean(HighBP == "Yes"),
+    .groups = "drop"
+  )
+print(prop_highbp)
+
+# Permutation test cho tỷ lệ HighBP
+perm_test_proportion <- function(.data, var, group, group1, group2, R = 10000) {
+  # Lọc dữ liệu
+  data_filtered <- .data %>%
+    filter({{group}} %in% c(group1, group2)) %>%
+    select({{var}}, {{group}})
+  
+  # Tính tỷ lệ quan sát
+  prop_1 <- data_filtered %>%
+    filter({{group}} == group1) %>%
+    pull({{var}}) %>%
+    {mean(. == "Yes")}
+  
+  prop_2 <- data_filtered %>%
+    filter({{group}} == group2) %>%
+    pull({{var}}) %>%
+    {mean(. == "Yes")}
+  
+  obs_diff <- prop_1 - prop_2
+  
+  # Permutation
+  values <- pull(data_filtered, {{var}})
+  groups <- pull(data_filtered, {{group}})
+  n <- length(values)
+  n_group1 <- sum(groups == group1)
+  
+  set.seed(42)
+  perm_diffs <- sapply(1:R, function(i) {
+    idx_1 <- sample(1:n, size = n_group1, replace = FALSE)
+    idx_2 <- setdiff(1:n, idx_1)
+    prop_perm_1 <- mean(values[idx_1] == "Yes")
+    prop_perm_2 <- mean(values[idx_2] == "Yes")
+    return(prop_perm_1 - prop_perm_2)
+  })
+  
+  p_val <- mean(abs(perm_diffs) >= abs(obs_diff))
+  
+  return(list(
+    obs_diff = obs_diff,
+    perm_diffs = perm_diffs,
+    p_value = p_val
+  ))
+}
+
+cat("\n--- Permutation test: HighBP (Diabetes vs No diabetes) ---\n")
+perm_highbp <- perm_test_proportion(df, HighBP, Diabetes_012, 
+                                    "Diabetes", "No diabetes", R = 10000)
+cat("Chênh lệch tỷ lệ quan sát:", round(perm_highbp$obs_diff, 4), "\n")
+cat("P-value:", perm_highbp$p_value, "\n")
+
+# Vẽ histogram
+ggplot(data = data.frame(diff = perm_highbp$perm_diffs), aes(x = diff)) +
+  geom_histogram(bins = 30, fill = "gray80", color = "black") +
+  geom_vline(xintercept = perm_highbp$obs_diff, color = "blue", 
+             linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Phân phối permutation: Tỷ lệ HighBP (Diabetes - No diabetes)",
+    x = "Chênh lệch tỷ lệ",
+    y = "Tần số"
+  ) +
+  theme_bw()
+```
+```{r}
+#  Bootstrap CI cho tỷ lệ HighBP
+# -------------------------------------------------------------------
+cat("\n=== BOOTSTRAP CI CHO TỶ LỆ HIGH BP ===\n")
+
+# Hàm statistic cho tỷ lệ
+boot_proportion <- function(data, indices) {
+  mean(data[indices] == "Yes")
+}
+
+# Lọc dữ liệu HighBP theo nhóm
+highbp_no   <- df$HighBP[df$Diabetes_012 == "No diabetes"]
+highbp_pre  <- df$HighBP[df$Diabetes_012 == "Prediabetes"]
+highbp_diab <- df$HighBP[df$Diabetes_012 == "Diabetes"]
+
+# Bootstrap
+set.seed(456)
+boot_highbp_no   <- boot(highbp_no,   statistic = boot_proportion, R = 5000)
+boot_highbp_pre  <- boot(highbp_pre,  statistic = boot_proportion, R = 5000)
+boot_highbp_diab <- boot(highbp_diab, statistic = boot_proportion, R = 5000)
+
+# CI kiểu percentile
+cat("\n--- No diabetes ---\n")
+cat("Tỷ lệ HighBP:", round(mean(highbp_no == "Yes"), 4), "\n")
+ci_highbp_no <- boot.ci(boot_highbp_no, type = "perc")
+print(ci_highbp_no)
+
+cat("\n--- Prediabetes ---\n")
+cat("Tỷ lệ HighBP:", round(mean(highbp_pre == "Yes"), 4), "\n")
+ci_highbp_pre <- boot.ci(boot_highbp_pre, type = "perc")
+print(ci_highbp_pre)
+
+cat("\n--- Diabetes ---\n")
+cat("Tỷ lệ HighBP:", round(mean(highbp_diab == "Yes"), 4), "\n")
+ci_highbp_diab <- boot.ci(boot_highbp_diab, type = "perc")
+print(ci_highbp_diab)
+
+# Vẽ phân phối bootstrap
+ggplot(data = data.frame(prop = boot_highbp_diab$t), aes(x = prop)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  geom_vline(xintercept = mean(highbp_diab == "Yes"), color = "red", 
+             linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = ci_highbp_diab$percent[4], color = "blue", 
+             linetype = "dotted") +
+  geom_vline(xintercept = ci_highbp_diab$percent[5], color = "blue", 
+             linetype = "dotted") +
+  labs(
+    title = "Phân phối Bootstrap: Tỷ lệ HighBP (nhóm Diabetes)",
+    x = "Tỷ lệ",
+    y = "Tần số"
+  ) +
+  theme_bw()
+
+# Phân tích tỷ lệ HighChol theo nhóm Diabetes
+# -------------------------------------------------------------------
+cat("\n=== PHÂN TÍCH TỶ LỆ HIGH CHOLESTEROL ===\n")
+
+prop_highchol <- df %>%
+  group_by(Diabetes_012) %>%
+  summarise(
+    n = n(),
+    n_highchol = sum(HighChol == "Yes"),
+    prop_highchol = mean(HighChol == "Yes"),
+    .groups = "drop"
+  )
+print(prop_highchol)
+
+cat("\n--- Permutation test: HighChol (Diabetes vs No diabetes) ---\n")
+perm_highchol <- perm_test_proportion(df, HighChol, Diabetes_012, 
+                                      "Diabetes", "No diabetes", R = 10000)
+cat("Chênh lệch tỷ lệ quan sát:", round(perm_highchol$obs_diff, 4), "\n")
+cat("P-value:", perm_highchol$p_value, "\n")
+
+# Bootstrap CI cho HighChol
+highchol_diab <- df$HighChol[df$Diabetes_012 == "Diabetes"]
+set.seed(789)
+boot_highchol_diab <- boot(highchol_diab, statistic = boot_proportion, R = 5000)
+
+cat("\n--- Bootstrap CI cho HighChol (nhóm Diabetes) ---\n")
+cat("Tỷ lệ HighChol:", round(mean(highchol_diab == "Yes"), 4), "\n")
+ci_highchol_diab <- boot.ci(boot_highchol_diab, type = "perc")
+print(ci_highchol_diab)
+
+#  Phân tích Smoker
+# -------------------------------------------------------------------
+cat("\n=== PHÂN TÍCH SMOKING STATUS ===\n")
+
+prop_smoker <- df %>%
+  group_by(Diabetes_012) %>%
+  summarise(
+    n = n(),
+    n_smoker = sum(Smoker == "Yes"),
+    prop_smoker = mean(Smoker == "Yes"),
+    .groups = "drop"
+  )
+print(prop_smoker)
+
+# Permutation test
+cat("\n--- Permutation test: Smoker (Diabetes vs No diabetes) ---\n")
+perm_smoker <- perm_test_proportion(df, Smoker, Diabetes_012, 
+                                    "Diabetes", "No diabetes", R = 10000)
+cat("Chênh lệch tỷ lệ quan sát:", round(perm_smoker$obs_diff, 4), "\n")
+cat("P-value:", perm_smoker$p_value, "\n")
+
+# Bootstrap CI
+smoker_diab <- df$Smoker[df$Diabetes_012 == "Diabetes"]
+set.seed(999)
+boot_smoker_diab <- boot(smoker_diab, statistic = boot_proportion, R = 5000)
+
+cat("\n--- Bootstrap CI cho Smoker (nhóm Diabetes) ---\n")
+cat("Tỷ lệ Smoker:", round(mean(smoker_diab == "Yes"), 4), "\n")
+ci_smoker_diab <- boot.ci(boot_smoker_diab, type = "perc")
+print(ci_smoker_diab)
+
+# Tạo bảng tổng hợp thống kê theo nhóm
+# -------------------------------------------------------------------
+cat("\n=== BẢNG THỐNG KÊ TỔNG HỢP THEO NHÓM DIABETES ===\n")
+
+summary_stats <- df %>%
+  group_by(Diabetes_012) %>%
+  summarise(
+    n = n(),
+    mean_BMI = mean(BMI, na.rm = TRUE),
+    sd_BMI = sd(BMI, na.rm = TRUE),
+    median_BMI = median(BMI, na.rm = TRUE),
+    min_BMI = min(BMI, na.rm = TRUE),
+    max_BMI = max(BMI, na.rm = TRUE),
+    prop_HighBP = mean(HighBP == "Yes", na.rm = TRUE),
+    prop_HighChol = mean(HighChol == "Yes", na.rm = TRUE),
+    prop_Smoker = mean(Smoker == "Yes", na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print.data.frame(summary_stats, digits = 4)
+
+#  Phân tích theo nhóm tuổi
+# -------------------------------------------------------------------
+cat("\n=== PHÂN TÍCH THEO NHÓM TUỔI ===\n")
+
+age_diabetes_stats <- df %>%
+  group_by(AgeGroup, Diabetes_012) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(AgeGroup) %>%
+  mutate(prop = n / sum(n)) %>%
+  filter(Diabetes_012 == "Diabetes")
+
+print(age_diabetes_stats)
+
+# Vẽ biểu đồ tỷ lệ Diabetes theo nhóm tuổi
+ggplot(age_diabetes_stats, aes(x = AgeGroup, y = prop)) +
+  geom_col(fill = "coral") +
+  geom_text(aes(label = sprintf("%.1f%%", prop*100)), 
+            vjust = -0.5, size = 3) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 0.5)) +
+  labs(
+    title = "Tỷ lệ Diabetes theo nhóm tuổi",
+    x = "Nhóm tuổi",
+    y = "Tỷ lệ"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# ===================================================================
+# PHẦN 4: NHẬN XÉT THỐNG KÊ
+# ===================================================================
+
+cat("\n")
+cat("===============================================================\n")
+cat("                    NHẬN XÉT THỐNG KÊ                          \n")
+cat("===============================================================\n\n")
+
+cat("1. PHÂN PHỐI DỮ LIỆU:\n")
+cat("   - Tổng số quan sát:", nrow(df), "\n")
+cat("   - Phân phối trạng thái Diabetes:\n")
+diabetes_dist <- df %>% count(Diabetes_012) %>% mutate(prop = n/sum(n))
+for(i in 1:nrow(diabetes_dist)) {
+  cat("     +", diabetes_dist$Diabetes_012[i], ":", 
+      diabetes_dist$n[i], "quan sát (", 
+      round(diabetes_dist$prop[i]*100, 1), "%)\n")
+}
+cat("\n")
+
+cat("2. BMI VÀ DIABETES:\n")
+cat("   a) So sánh Diabetes vs No diabetes:\n")
+cat("      - Permutation test:\n")
+cat("        + Chênh lệch trung bình BMI:", round(perm_bmi_1$obs_diff, 2), "\n")
+cat("        + P-value:", perm_bmi_1$p_value, "\n")
+cat("      - Bootstrap test:\n")
+cat("        + Thống kê t:", round(boot_bmi_1$t_obs, 2), "\n")
+cat("        + P-value:", boot_bmi_1$p_value, "\n")
+cat("      - Bootstrap CI cho BMI:\n")
+cat("        + No diabetes: [", round(ci_no$percent[4], 2), ", ", 
+    round(ci_no$percent[5], 2), "]\n")
+cat("        + Diabetes: [", round(ci_diab$percent[4], 2), ", ", 
+    round(ci_diab$percent[5], 2), "]\n")
+if(perm_bmi_1$p_value < 0.05) {
+  cat("      => Kết luận: Có sự khác biệt có ý nghĩa thống kê (α = 0.05)\n")
+} else {
+  cat("      => Kết luận: Không có sự khác biệt có ý nghĩa thống kê (α = 0.05)\n")
+}
+cat("\n")
+
+cat("   b) So sánh Prediabetes vs No diabetes:\n")
+cat("      - Permutation test:\n")
+cat("        + Chênh lệch trung bình BMI:", round(perm_bmi_2$obs_diff, 2), "\n")
+cat("        + P-value:", perm_bmi_2$p_value, "\n")
+cat("      - Bootstrap test:\n")
+cat("        + Thống kê t:", round(boot_bmi_2$t_obs, 2), "\n")
+cat("        + P-value:", boot_bmi_2$p_value, "\n")
+cat("      - Bootstrap CI cho BMI:\n")
+cat("        + Prediabetes: [", round(ci_pre$percent[4], 2), ", ", 
+    round(ci_pre$percent[5], 2), "]\n")
+if(perm_bmi_2$p_value < 0.05) {
+  cat("      => Kết luận: Có sự khác biệt có ý nghĩa thống kê (α = 0.05)\n")
+} else {
+  cat("      => Kết luận: Không có sự khác biệt có ý nghĩa thống kê (α = 0.05)\n")
+}
+cat("\n")
+
+cat("3. HUYẾT ÁP CAO (HighBP) VÀ DIABETES:\n")
+cat("   - Tỷ lệ HighBP theo nhóm:\n")
+for(i in 1:nrow(prop_highbp)) {
+  cat("     +", prop_highbp$Diabetes_012[i], ":", 
+      round(prop_highbp$prop_highbp[i]*100, 1), "%\n")
+}
+cat("   - Permutation test (Diabetes vs No diabetes):\n")
+cat("     + Chênh lệch tỷ lệ:", round(perm_highbp$obs_diff, 4), "\n")
+cat("     + P-value:", perm_highbp$p_value, "\n")
+if(perm_highbp$p_value < 0.05) {
+  cat("   => Kết luận: Tỷ lệ HighBP trong nhóm Diabetes khác biệt\n")
+  cat("      có ý nghĩa thống kê so với nhóm No diabetes\n")
+}
+cat("   - Bootstrap CI cho tỷ lệ HighBP:\n")
+cat("     + No diabetes: [", round(ci_highbp_no$percent[4]*100, 1), "%, ",
+    round(ci_highbp_no$percent[5]*100, 1), "%]\n")
+cat("     + Prediabetes: [", round(ci_highbp_pre$percent[4]*100, 1), "%, ",
+    round(ci_highbp_pre$percent[5]*100, 1), "%]\n")
+cat("     + Diabetes: [", round(ci_highbp_diab$percent[4]*100, 1), "%, ",
+    round(ci_highbp_diab$percent[5]*100, 1), "%]\n")
+cat("\n")
+
+cat("4. CHOLESTEROL CAO (HighChol) VÀ DIABETES:\n")
+cat("   - Tỷ lệ HighChol theo nhóm:\n")
+for(i in 1:nrow(prop_highchol)) {
+  cat("     +", prop_highchol$Diabetes_012[i], ":", 
+      round(prop_highchol$prop_highchol[i]*100, 1), "%\n")
+}
+cat("   - Permutation test (Diabetes vs No diabetes):\n")
+cat("     + Chênh lệch tỷ lệ:", round(perm_highchol$obs_diff, 4), "\n")
+cat("     + P-value:", perm_highchol$p_value, "\n")
+if(perm_highchol$p_value < 0.05) {
+  cat("   => Kết luận: Tỷ lệ HighChol trong nhóm Diabetes khác biệt\n")
+  cat("      có ý nghĩa thống kê so với nhóm No diabetes\n")
+}
+cat("   - Bootstrap CI cho nhóm Diabetes:\n")
+cat("     + Tỷ lệ: [", round(ci_highchol_diab$percent[4]*100, 1), "%, ",
+    round(ci_highchol_diab$percent[5]*100, 1), "%]\n")
+cat("\n")
+
+cat("5. HÚT THUỐC (Smoker) VÀ DIABETES:\n")
+cat("   - Tỷ lệ Smoker theo nhóm:\n")
+for(i in 1:nrow(prop_smoker)) {
+  cat("     +", prop_smoker$Diabetes_012[i], ":", 
+      round(prop_smoker$prop_smoker[i]*100, 1), "%\n")
+}
+cat("   - Permutation test (Diabetes vs No diabetes):\n")
+cat("     + Chênh lệch tỷ lệ:", round(perm_smoker$obs_diff, 4), "\n")
+cat("     + P-value:", perm_smoker$p_value, "\n")
+if(perm_smoker$p_value < 0.05) {
+  cat("   => Kết luận: Có sự khác biệt có ý nghĩa thống kê\n")
+} else {
+  cat("   => Kết luận: Không có sự khác biệt có ý nghĩa thống kê\n")
+}
+cat("   - Bootstrap CI cho nhóm Diabetes:\n")
+cat("     + Tỷ lệ: [", round(ci_smoker_diab$percent[4]*100, 1), "%, ",
+    round(ci_smoker_diab$percent[5]*100, 1), "%]\n")
+cat("\n")
+
+cat("6. TUỔI VÀ DIABETES:\n")
+cat("   - Tỷ lệ Diabetes tăng dần theo nhóm tuổi\n")
+cat("   - Nhóm tuổi có tỷ lệ Diabetes cao nhất:\n")
+max_age_group <- age_diabetes_stats %>% 
+  filter(prop == max(prop))
+cat("     +", as.character(max_age_group$AgeGroup), ":", 
+    round(max_age_group$prop*100, 1), "%\n")
+cat("\n")
+
+cat("7. KẾT LUẬN TỔNG QUÁT:\n")
+cat("   - Các yếu tố nguy cơ chính được xác định:\n")
+cat("     + BMI cao: Nhóm Diabetes có BMI trung bình cao hơn đáng kể\n")
+cat("     + Huyết áp cao: Tỷ lệ HighBP trong nhóm Diabetes cao hơn rõ rệt\n")
+cat("     + Cholesterol cao: Tỷ lệ HighChol trong nhóm Diabetes cao hơn\n")
+cat("     + Tuổi tác: Tỷ lệ Diabetes tăng theo độ tuổi\n")
+cat("\n")
+cat("   - Khuyến nghị:\n")
+cat("     + Kiểm soát BMI trong phạm vi khỏe mạnh\n")
+cat("     + Theo dõi và điều trị huyết áp cao\n")
+cat("     + Kiểm tra cholesterol định kỳ\n")
+cat("     + Tầm soát Diabetes cho nhóm tuổi cao\n")
+cat("     + Can thiệp sớm đối với nhóm Prediabetes\n")
+cat("\n")
+
+cat("===============================================================\n")
+```
+PHẦN CỦA HOÀNG LONG
+**Hồi quy và tiên đoán**
+
+# GLM (Logistic)
+```{r}
+df <- df %>%
+  mutate(Diabetes_binary = case_when(
+    Diabetes_012 == "Diabetes" ~ 1,
+    TRUE ~ 0
+  ))
+
+df$Diabetes_binary <- as.factor(df$Diabetes_binary)
+
+ggplot(df, aes(x = Diabetes_binary, fill = Diabetes_012)) +
+  geom_bar(alpha = 0.7, position = "stack") +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Diabetes Binary Outcome",
+    x = "Diabetes (0 = No/Pre, 1 = Yes)",
+    y = "Count"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+train_index <- createDataPartition(df$Diabetes_binary, p = 0.7, list = FALSE)
+train_data <- df[train_index, ]
+test_data  <- df[-train_index, ]
+```
+```{r}
+train_data_balanced <- upSample(
+  x = train_data %>% select(-Diabetes_binary),
+  y = train_data$Diabetes_binary,
+  yname = "Diabetes_binary"
+)
+
+ggplot(train_data_balanced, aes(x = Diabetes_binary)) +
+  geom_bar(fill = "steelblue") +
+  labs(
+    title = "Class distribution after upsampling",
+    x = "Class",
+    y = "Count"
+  )
+```
+```{r}
+logistic_model <- glm(Diabetes_binary ~ Age + 
+                   BMI +
+                   HighBP + HighChol + Smoker +
+                   PhysActivity + Sex + Income + GenHlth,
+             data = train_data_balanced,
+             family = binomial)
+# Summarize the model
+summary(logistic_model)
+```
+```{r}
+vif(logistic_model)
+```
+```{r}
+exp(coef(logistic_model))   # odds ratio
+```
+```{r}
+# Xác suất dự đoán
+prob_test <- predict(logistic_model, newdata = test_data, type = "response")
+
+# Phân lớp với threshold 0.5
+pred_class <- ifelse(prob_test > 0.5, 1, 0)
+pred_class <- as.factor(pred_class)
+```
+```{r}
+confusionMatrix(pred_class, test_data$Diabetes_binary)
+```
+```{r}
+roc_obj <- roc(test_data$Diabetes_binary, prob_test)
+auc(roc_obj)
+
+plot(roc_obj, col = "blue", main = "ROC Curve - Logistic Model")
+```
+```{r}
+knots_age <- quantile(train_data_balanced$Age, probs = c(0.25, 0.5, 0.75))
+
+spline_model <- glm(Diabetes_binary ~ 
+                      bs(Age, knots = knots_age, degree = 3) +
+                      BMI + HighBP + HighChol,
+                    data = train_data_balanced,
+                    family = binomial)
+
+summary(spline_model)
+```
+```{r}
+age_seq <- seq(min(train_data_balanced$Age), max(train_data_balanced$Age), length.out = 200)
+
+newdata <- data.frame(
+  Age = age_seq,
+  BMI = mean(train_data_balanced$BMI, na.rm = TRUE),
+  HighBP = "No",
+  HighChol = "No"
+)
+
+newdata$pred <- predict(spline_model, newdata, type = "response")
+```
+
+```{r}
+ggplot(newdata, aes(x = Age, y = pred)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Spline (B-spline): Age → Risk of Diabetes",
+    x = "Age group (1–13)",
+    y = "Predicted probability"
+  ) +
+  theme_minimal()
+```
+
+## Đánh giá mô hình:
+```{r}
+# Predict
+spline_prob <- predict(spline_model, newdata = test_data, type = "response")
+spline_pred <- ifelse(spline_prob > 0.5, 1, 0)
+spline_pred <- factor(spline_pred, levels = c(0,1))
+
+# Confusion matrix + Accuracy
+confusionMatrix(spline_pred, test_data$Diabetes_binary)
+
+# AUC
+roc_spline <- roc(test_data$Diabetes_binary, spline_prob)
+auc(roc_spline)
+
+plot(roc_spline,
+     main = paste("ROC Curve - Spline Model (AUC =", round(auc(roc_spline), 3), ")"),
+     col = "blue",
+     lwd = 2)
+```
+# GAM
+```{r}
+gam_model <- gam(Diabetes_binary ~ 
+                   s(Age) + 
+                   s(BMI) +
+                   HighBP + HighChol + Smoker +
+                   PhysActivity + Sex + Income + GenHlth,
+                 data = train_data_balanced,
+                 family = binomial)
+
+summary(gam_model)
+```
+```{r}
+terms_gam <- predict(gam_model, type = "terms")
+
+head(terms_gam)
+```
+```{r}
+viz <- getViz(gam_model)
+
+print(plot(viz, allTerms = T), pages = 1)
+```
+
+# Đánh giá mô hình:
+```{r}
+# Predict probability on test set
+gam_prob <- predict(gam_model, test_data, type = "response")
+
+roc_gam <- roc(test_data$Diabetes_binary, gam_prob)
+auc(roc_gam)
+
+plot(roc_gam, main = "ROC Curve - GAM")
+```
+# LASSO:
+```{r}
+X <- model.matrix(
+  Diabetes_binary ~ HighBP + HighChol + CholCheck + BMI + Smoker + Stroke +
+    HeartDiseaseorAttack + PhysActivity + Sex + Age + Education + Income + GenHlth,
+  data = train_data_balanced
+)[, -1]  
+
+y <- as.numeric(train_data_balanced$Diabetes_binary) - 1
+```
+
+```{r}
+set.seed(123)
+cv_lasso <- cv.glmnet(X, y, family = "binomial", alpha = 1)
+
+plot(cv_lasso)
+
+best_lambda_lasso <- cv_lasso$lambda.min
+best_lambda_lasso
+```
+
+```{r}
+lasso_model <- glmnet(X, y, family = "binomial", alpha = 1, lambda = best_lambda_lasso)
+
+coef(lasso_model)
+```
+## Đánh giá mô hình:
+```{r}
+X_test <- model.matrix(
+  Diabetes_binary ~ HighBP + HighChol + CholCheck + BMI + Smoker + Stroke +
+    HeartDiseaseorAttack + PhysActivity + Sex + Age + Education + Income + GenHlth,
+  data = test_data
+)[, -1]
+
+lasso_prob <- predict(lasso_model, newx = X_test, type = "response")
+```
+
+```{r}
+roc_lasso <- roc(test_data$Diabetes_binary, as.numeric(lasso_prob))
+auc(roc_lasso)
+
+plot(roc_lasso, main = "ROC Curve - LASSO")
+```
+
