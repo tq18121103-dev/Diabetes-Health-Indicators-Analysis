@@ -3,7 +3,7 @@ title: "project_ck"
 output: html_document
 date: "2025-12-28"
 ---
-PHẦN CỦA THUÝ QUỲNH
+
 ```{r}
 library(dplyr)
 library(tidyverse)
@@ -169,7 +169,7 @@ boot.ci(boot_pre,   type = "perc")
 boot.ci(boot_diab, type = "perc")
 
 ```
-PHẦN CỦA THU HỒNG
+
 Thống kê mô tả theo nhóm
 ```{r}
 df %>%
@@ -244,7 +244,7 @@ ggplot(data = data.frame(value = perm_results), aes(x = value)) +
   theme_bw()
 ```
 
-PHẦN CỦA HOÀNG BẢO
+
 ```{r}
 # ===================================================================
 #  PHÂN TÍCH MỐI LIÊN HỆ & KIỂM ĐỊNH
@@ -884,7 +884,7 @@ cat("\n")
 
 cat("===============================================================\n")
 ```
-PHẦN CỦA HOÀNG LONG
+
 **Hồi quy và tiên đoán**
 
 # GLM (Logistic)
